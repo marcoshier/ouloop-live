@@ -1,0 +1,595 @@
+<doctype !html>
+<html>
+    <head>
+        <script src="https://cdnjs.cloudflare.com/ajax/libs/howler/2.2.4/howler.min.js"></script>
+        <title>-ouloop</title>
+        <style>
+            html, body {
+                background: rgb(217, 217, 217);
+                margin: 0;
+                padding: 10px;
+                overflow: hidden;
+                width: 100%;
+                height: 100%;
+                font-family: monospace;
+            }
+
+            h1 {
+                font-family: "Courier New", Courier, monospace;
+                font-size: 2em;
+                text-align: left;
+                display: inline-block;
+            }
+            
+            #lines-container {
+                width: calc(100vw - 60px);
+                box-sizing: border-box;
+                min-height: 45vh;
+                display: flex;
+                flex-direction: row;
+                border: 1px solid black;
+            }
+
+            #chain-container {
+                padding: 40px 0;
+                width: calc(100vw - 62px);
+                /* border: 1px solid red; */
+            }
+
+            .lines-container-div {
+                position: relative;
+                overflow: auto;
+                /* border: 1px solid red; */
+                width: 50%;
+                max-height: 50vh;
+                padding-bottom: 40px !important;
+            }
+             
+            .sound-line {
+                position: relative;
+                display: block;
+                width: calc(100% - 20px);
+                margin-left: 10px;
+                margin-top: 1px;
+                height: 20px;
+                box-sizing: border-box;
+                cursor: pointer;
+                display: flex;
+                align-items: center;
+                padding-left: 10px;
+                border: 1px solid black;
+            }
+
+            .sound-line:hover {
+                border: 1px solid black;
+            }
+
+            .sound-line .fill {
+                position: absolute;
+                left: 0;
+                top: 0;
+                bottom: 0;
+                width: 100%;
+                background: black;
+                transform: scaleX(0);
+                transform-origin: left;
+            }
+ 
+            .sound-box p { 
+                position: relative;
+                margin: 0; 
+                color: red;
+                mix-blend-mode: difference;
+            }
+
+            .sound-box.inactive {
+                pointer-events: none;
+                opacity: 0.3;
+            }
+            
+            #sounds {
+                width: 100%;
+                display: flex;
+                flex-direction: row;
+                flex-wrap: wrap;
+                gap: 8px;
+                padding-top: 20px;
+                padding-bottom: 20px;
+                align-content: flex-start;
+            }
+
+            #viz {
+                display: flex;
+                flex-direction: row;
+                flex-wrap: wrap;
+                align-content: flex-start;
+                gap: 1px;
+            }
+
+            .viz-block {
+                height: 20px;
+                flex: none;
+                width: 0;
+            }
+
+ 
+            .sound-line:not(.playing):hover {
+                 background: #eee; 
+            }
+
+          
+
+            #chain {
+                margin-top: 70px;
+                margin-left: 30px;
+                max-width: calc(100% - 60px);
+                font-size: 1.5em;
+            }
+
+            .dropdown {
+                height: 50px;
+                position: relative;
+                display: inline-flex;
+                align-items: center;
+                padding: 0 8px;
+                border: 1px solid black;
+                font-family: "Courier New", Courier, monospace;
+                font-size: 0.85em;
+                cursor: pointer;
+                min-width: 34px;
+                text-align: center;
+            }
+ 
+            .dropdown-menu {
+                display: none;
+                position: absolute;
+                top: 100%;
+                min-width: 50px;
+                text-align: center;
+                left: 0;
+                background: white;
+                border: 1px solid black;
+                z-index: 1;
+            }
+ 
+            .dropdown:hover .dropdown-menu { 
+                display: block; 
+            }
+ 
+            .dropdown-menu div { 
+                padding: 4px 8px; 
+            }
+            .dropdown-menu div:hover { 
+                background: #eee; 
+            }
+        </style>
+    </head>
+    <body>
+        <h1 style="text-decoration: rgb(250, 95, 95) dotted underline; font-style: italic;">file:realest_most_human_experience_ever.wav</h1>
+        <br>
+        <div id="lines-container">
+            <div id="lines" class="lines-container-div">
+                <div id="sounds"></div>
+            </div>
+            <div id="viz" class="lines-container-div">
+            </div>
+        </div>
+        <div id="chain-container">
+            <div id="chain">
+                <div id="action" class="dropdown">
+                    <span class="dropdown-label"></span>
+                    <div class="dropdown-menu"></div>
+                </div>
+                <div id="times" class="dropdown">
+                    <span class="dropdown-label"></span>
+                    <div class="dropdown-menu"></div>
+                </div>
+                times,
+                sounds that are of
+                <div id="subtype" class="dropdown">
+                    <span class="dropdown-label"></span>
+                    <div class="dropdown-menu"></div>
+                </div> type.
+                play them at
+                <div id="speed" class="dropdown">
+                    <span class="dropdown-label"></span>
+                    <div class="dropdown-menu"></div>
+                </div> speed.
+                only play a
+                <div id="amount" class="dropdown">
+                    <span class="dropdown-label"></span>
+                    <div class="dropdown-menu"></div>
+                </div>.
+                start playing from
+                <div id="start" class="dropdown">
+                    <span class="dropdown-label"></span>
+                    <div class="dropdown-menu"></div>
+                </div>.
+            </div>
+        </div>
+        
+    </body>
+    <script type="module" >
+        let midi = null
+
+        const files = import.meta.glob('./audios/*.mp3', {
+          eager: true 
+        });
+
+        // adapted from https://gist.github.com/bendc/76c48ce53299e6078a76
+        const randomColor = (() => {
+          const randomInt = (min, max) => {
+            return Math.floor(Math.random() * (max - min + 1)) + min;
+          };
+
+          return () => {
+            var h = randomInt(0, 360);
+            var s = randomInt(70, 100);
+            var l = randomInt(60, 90);
+            return `hsl(${h},${s}%,${l}%)`;
+          };
+        })();
+
+        let audioFiles = [];
+        let audioPlayers = [];
+        
+        let action = null;
+        let type = null;
+        let times = null;
+        let speed = null;
+        let amount = null;
+        let place = null;
+        let startFrom = null;
+ 
+        const rates = {
+            normal: 1,
+            slow: 0.6, 
+            fast: 1.6,
+            superslow: 0.4, 
+            superfast: 2.5,
+            suuuperslow: 0.2,
+            suuuperfast: 4
+        };
+
+        const amounts = {
+            "grain": 0.0025,
+            "reaaally tiny bit": 0.01,
+            "really tiny bit": 0.03,
+            "tiny bit": 0.1,
+            "all of it": 1
+        };
+
+        const viz = document.getElementById("viz");
+        const PX_PER_SEC = 40;
+        const MAX_BLOCKS = 4000;
+
+        function logBlock(box, ms) {
+            const el = document.createElement("div");
+            el.className = "viz-block";
+            el.style.background = box.color;
+            viz.appendChild(el);
+
+            if (viz.children.length > MAX_BLOCKS) {
+              viz.firstChild.remove()
+            }
+
+            const w = Math.max(2, (ms / 1000) * PX_PER_SEC);
+
+            box.vizAnim = el.animate(
+                [{ width: "0px" }, { width: `${w}px` }],
+                { duration: ms, easing: "linear", fill: "forwards" }
+            );
+
+            viz.scrollTop = viz.scrollHeight * 3;
+        }
+ 
+        function makeDropdown(id, options, onSelect) {
+            const el = document.getElementById(id);
+            const label = el.querySelector(".dropdown-label");
+            const menu = el.querySelector(".dropdown-menu");
+ 
+            onSelect(options[0]);
+            label.textContent = options[0];
+ 
+            options.forEach(opt => {
+                const item = document.createElement("div");
+                item.textContent = opt;
+                item.addEventListener("click", () => {
+                    onSelect(opt);
+                    label.textContent = opt;
+                });
+                menu.appendChild(item);
+            });
+        }
+ 
+        function makeDropdowns() {
+           makeDropdown("action", ["repeat", "reverse"], v => {
+                action = v;
+                playingBoxes().forEach(box => { 
+                  stopBox(box)
+                  startBox(box, box.offsetFrac)
+                 });
+            });
+            makeDropdown("times", ["infinite", ...Array.from({ length: 10 }, (_, i) => i + 1)], v => times = v);
+            makeDropdown("subtype", ["any", "field recording", "description", "metadata"], v => { 
+                                        type = (v === "any") ? null : v; 
+                                        applyFilters(); 
+                                    });
+            makeDropdown("speed", ["normal", "fast", "slow", "superfast", "superslow", "suuuperfast", "suuuperslow"], v => {
+                speed = v;
+                playingBoxes().forEach(box => setBoxRate(box, rates[v] || 1));
+            });
+            makeDropdown("amount", [...Object.keys(amounts)], v => amount = v);            
+            makeDropdown("start", ["from where clicked", "from the start"], v => startFrom = v);            
+        }
+
+        function fillBox(box, from, frac, ms) {
+            const bar = box.querySelector(".fill");
+
+            if (box.anim) {
+                box.anim.cancel()
+            };
+
+            box.anim = bar.animate(
+                [{ transform: `scaleX(${from})` }, { transform: `scaleX(${from + frac})` }],
+                { duration: ms, easing: "linear", fill: "forwards" }
+            );
+
+            logBlock(box, ms);
+        }
+
+        function clearFill(box) {
+            if (box.anim) {
+                box.anim.cancel();
+            };
+        }
+
+        function stopBox(box) {
+            clearTimeout(box.timer);
+
+            if (box.sound) {
+                box.sound.stop()
+            }
+
+            if (box.src) {
+                const src = box.src;
+                box.src = null;
+                src.stop();
+            }
+
+            box.playing = false;
+            box.chunkEnd = 0;
+            box.classList.remove("playing");
+
+            if (box.vizAnim) box.vizAnim.pause();
+            clearFill(box);
+        }
+
+        function playingBoxes() {
+            return [...document.querySelectorAll(".sound-line")].filter(b => b.playing);
+        }
+
+        function startBox(box, offsetFrac) {
+            box.offsetFrac = offsetFrac;
+            box.rate = rates[speed] || 1;
+            box.playing = true;
+            box.classList.add("playing");
+
+            if (action === "reverse") {
+                playReverse(box.file, box, offsetFrac);
+            } else {
+                playForward(box.howl, box, box.howl.duration() * offsetFrac, offsetFrac);
+            }
+        }
+
+        function setBoxRate(box, newRate) {
+            if (!box.playing || box.rate === newRate) return;
+
+            const ratio = newRate / box.rate;
+            box.rate = newRate;
+
+            if (!box.chunkEnd) return;
+
+            const now = performance.now();
+            const left = Math.max(0, (box.chunkEnd - now) / ratio);
+            box.chunkEnd = now + left;
+
+            if (box.sound) {
+                box.sound.rate(newRate);
+                clearTimeout(box.timer);
+                box.timer = setTimeout(box.onChunkEnd, left);
+            } else if (box.src) {
+                box.src.playbackRate.value = newRate;
+            }
+
+            if (box.anim) box.anim.updatePlaybackRate(box.anim.playbackRate * ratio);
+
+            if (box.vizAnim) box.vizAnim.pause();
+            logBlock(box, left);
+        }
+
+        function playForward(sound, box, start, fromFrac) {
+            box.src = null;
+            box.sound = sound;
+            sound.rate(box.rate);
+
+            let count = 0;
+            const chunk = () => {
+                if (!box.playing) return;
+
+                const frac = amounts[amount] ?? 1;
+                sound.seek(start);
+                sound.play();
+
+                const playSecs = Math.min(sound.duration() * frac, sound.duration() - start);
+                const ms = (playSecs / box.rate) * 1000;
+                fillBox(box, fromFrac, frac, ms);
+
+                box.onChunkEnd = () => {
+                    sound.stop();
+                    if (times === "infinite" || ++count < times) chunk();
+                    else stopBox(box);
+                };
+                box.chunkEnd = performance.now() + ms;
+                box.timer = setTimeout(box.onChunkEnd, ms);
+            };
+
+            if (sound.state() === "loaded") chunk();
+            else sound.once("load", chunk);
+        }
+ 
+        //https://stackoverflow.com/questions/9874167/how-can-i-play-audio-in-reverse-with-web-audio-api
+        async function playReverse(file, box, fromFrac) {
+            box.sound = null;
+            const ctx = Howler.ctx;
+            if (ctx.state === "suspended") ctx.resume();
+ 
+            if (!file._rev) {
+                const data = await fetch(file.url).then(r => r.arrayBuffer());
+                const buf = await ctx.decodeAudioData(data);
+
+                for (let c = 0; c < buf.numberOfChannels; c++) {
+                    buf.getChannelData(c).reverse();
+                }
+
+                file._rev = buf;
+            }
+ 
+            if (!box.playing) return;
+
+            const dur = file._rev.duration;
+            const start = (startFrom === "from the start") ? 0 : dur * (1 - fromFrac);
+
+            let count = 0;
+
+            const chunk = () => {
+                const frac = amounts[amount] ?? 1;
+                const src = ctx.createBufferSource();
+                src.buffer = file._rev;
+                src.playbackRate.value = box.rate;
+
+                const gain = ctx.createGain();
+                gain.gain.value = 0.5;
+                src.connect(gain).connect(ctx.destination);
+
+                src.onended = () => {
+                    if (box.src !== src) return;
+                    if (times === "infinite" || ++count < times) chunk();
+                    else stopBox(box);
+                };
+
+                box.src = src;
+                const playSecs = Math.min(dur * frac, dur - start);
+                const ms = (playSecs / box.rate) * 1000;
+                box.chunkEnd = performance.now() + ms;
+                fillBox(box, fromFrac, frac, ms);
+                src.start(0, start, playSecs);
+            };
+
+            chunk();
+        }
+
+        function matches(box) {
+            return (!type  || box.track.toLowerCase().includes(type.toLowerCase()))
+                && (!place || box.section === place);
+        }
+
+        function applyFilters() {
+            document.querySelectorAll(".sound-box").forEach(box => {
+                const ok = matches(box);
+                box.classList.toggle("inactive", !ok);
+                if (!ok && box.playing) {
+                    stopBox(box)
+                };
+            });
+        }
+ 
+        function makeTracks() {
+            const soundsEl = document.getElementById("sounds");
+ 
+            audioPlayers.forEach(s => s.unload());
+            audioPlayers = [];
+            soundsEl.innerHTML = "";
+ 
+            audioFiles.forEach(file => {
+
+                const sound = new Howl({
+                    src: [file.url],
+                    format: ["mp3"],
+                    volume: 0.5
+                });
+                audioPlayers.push(sound);
+ 
+                const box = document.createElement("div");
+                const parts = file.name.replace(/\.mp3$/i, "").split(" - ");
+                box.section = parts[0];
+                box.track = parts.slice(2).join(" - ");
+                box.classList.add("sound-line");
+                const color = randomColor();
+                box.color = color;
+                box.file = file;
+                box.howl = sound;
+                box.innerHTML = `<div class="fill" style="background-color:${color};"></div><p>${file.name.replace(/\.mp3$/i, "")}</p>`;
+ 
+                box.addEventListener("click", (e) => {
+                    if (box.playing) { 
+                      stopBox(box)
+                      return
+                    }
+
+                   const rect = box.getBoundingClientRect();
+                    const clickFrac = (e.clientX - rect.left) / rect.width;
+                    const offsetFrac = (startFrom === "from where clicked") ? clickFrac : 0;
+
+                    startBox(box, offsetFrac);
+                });
+ 
+                soundsEl.appendChild(box);
+            });
+
+            applyFilters();
+        }
+
+      function loadAudios() {
+          const modules = import.meta.glob('./audios/*.wav', {
+              import: 'default',
+              eager: true,
+          });
+
+          audioFiles = Object.entries(modules)
+              .map(([path, url]) => ({ name: path.split('/').pop(), url }))
+              .sort((a, b) => a.name.localeCompare(b.name));
+      }
+
+      function onMIDISuccess(midiAccess) {
+        console.log("midi loaded")
+        midi = midiAccess;
+
+
+        for(const entry of midiAccess.inputs) {
+          const input = entry[1];
+
+          input.onmidimessage = (msg) => {
+            console.log(msg)
+          }
+        }
+      }
+
+      function onMIDIFailure(err) {
+        console.error(`Failed to get MIDI access - ${msg}`)
+      }
+
+      function loadMidi() {
+          navigator.requestMIDIAccess().then(onMIDISuccess, onMIDIFailure);
+      }
+
+      function init() {
+          makeDropdowns();
+          loadAudios();
+          makeTracks();
+          loadMidi();
+      }
+
+      document.addEventListener("DOMContentLoaded", init);
+    </script>
+</html>
